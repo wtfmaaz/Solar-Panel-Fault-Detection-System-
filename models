@@ -1,1 +1,7 @@
+# Save tabular model
+import joblib
+joblib.dump(clf, "models/tabular_rf.pkl")
+
+# Save CNN model
+cnn.save("models/cnn_thermal.h5")
 
