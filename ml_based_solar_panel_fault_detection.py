@@ -18,7 +18,7 @@ from email.mime.multipart import MIMEMultipart
 import paho.mqtt.client as mqtt
 from pyfcm import FCMNotification
 
-st.set_page_config(page_title="☀Advanced Solar Panel Monitoring", layout="wide")
+st.set_page_config(page_title="Advanced Solar Panel Monitoring", layout="wide")
 
 # ----------------- CONFIG -----------------
 MODEL_DIR = "models"
