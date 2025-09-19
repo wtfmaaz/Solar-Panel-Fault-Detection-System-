@@ -196,7 +196,14 @@ with tabs[2]:
 with tabs[3]:
     st.subheader("⚠️ Alerts & Fault Logs")
     if not st.session_state.data.empty:
-        alerts = st.session_state.data[st.session_state.data['fault']!="
+        alerts = st.session_state.data[st.session_state.data['fault'] != "Normal"]
+        if not alerts.empty:
+            st.dataframe(alerts.sort_values(by="timestamp", ascending=False))
+            st.warning(f"{len(alerts)} faults detected!")
+        else:
+            st.success("No faults detected. All panels normal ✅")
+    else:
+        st.info("No data available yet.")
 
 
 
