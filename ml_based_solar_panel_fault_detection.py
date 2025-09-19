@@ -121,7 +121,7 @@ except Exception as e:
 # -------------------------------
 # Streamlit App UI
 # -------------------------------
-st.title("☀️ Advanced Solar Panel Fault Detection & Monitoring")
+st.title("Advanced Solar Panel Fault Detection & Monitoring")
 
 input_mode = st.radio("Input mode:", ["Manual Reading", "CSV Upload"])
 
@@ -152,13 +152,47 @@ def predict_fault(df):
         features = df[["voltage", "current", "irradiance", "temp"]]
         df["fault"] = tabular_model.predict(features)
         for _, row in df.iterrows():
-            if row["fault]()
+            if row["fault"] != 0:
+                log_fault(int(row["panel_no"]), row["fault"])
+                send_email_alert(int(row["panel_no"]), row["fault"])
+    return df
 
+if st.button("Predict / Log Faults"):
+    if input_mode == "Manual Reading":
+        data_to_predict = manual_input
+    else:
+        data_to_predict = manual_input
+    
+    predictions = predict_fault(data_to_predict)
+    st.session_state["last_predictions"] = predictions
+    st.success("Prediction Complete!")
+    st.dataframe(predictions)
 
+# -------------------------------
+# Forecasting (Prophet)
+# -------------------------------
+st.subheader("📈 Predictive Maintenance Forecasting")
+if st.session_state.realtime_data.shape[0] > 10:
+    df_forecast = st.session_state.realtime_data.copy()
+    df_forecast["ds"] = pd.to_datetime(df_forecast.index)
+    df_forecast["y"] = df_forecast["voltage"]
+    prophet_model = Prophet()
+    prophet_model.fit(df_forecast[["ds", "y"]])
+    future = prophet_model.make_future_dataframe(periods=10)
+    forecast = prophet_model.predict(future)
+    fig = px.line(forecast, x="ds", y="yhat", title="Voltage Forecast")
+    st.plotly_chart(fig)
+else:
+    st.info("Collect more than 10 real-time readings for forecasting.")
 
-
-
-
+# -------------------------------
+# View Logs
+# -------------------------------
+st.subheader("📝 Fault Log History")
+init_db()
+conn = sqlite3.connect(DB_PATH)
+st.dataframe(pd.read_sql("SELECT * FROM fault_logs ORDER BY timestamp DESC", conn))
+conn.close()
 
 
 
