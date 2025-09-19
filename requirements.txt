@@ -1,26 +1,15 @@
-# Streamlit UI
-streamlit>=1.49.1
-
-# Core ML / data libraries
-numpy>=1.26.0
-pandas>=2.3.2
-scikit-learn>=1.7.2
-joblib>=1.5.2
-pillow>=11.3.0
-requests>=2.32.5
-
-# Time series / forecasting
-prophet>=1.1.7
-
-# Deep learning (TensorFlow 2.20+ compatible with Python 3.13)
-tensorflow>=2.20.0
-
-# FastAPI backend
-fastapi>=0.111.0
-uvicorn>=0.23.1
-nest-asyncio>=1.5.8
-pyngrok>=6.1.5
-
-# Optional for better logging in Streamlit
-rich>=14.1.0
-plotly>=5.0
+streamlit>=1.22
+pandas>=2.0
+numpy>=1.25
+scikit-learn>=1.7
+plotly>=5.15
+tensorflow>=2.13
+prophet>=1.1
+joblib>=1.5
+paho-mqtt>=1.6
+pyfcm>=1.5.4
+sqlite3 ; python_version<"3.10"
+smtplib ; python_version<"3.10"
+opencv-python>=4.8   # for thermal image preprocessing
+Pillow>=11.0         # for image handling
+matplotlib>=3.8      # optional visualizations
