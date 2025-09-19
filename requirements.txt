@@ -1,0 +1,14 @@
+streamlit>=1.22
+pandas
+numpy
+scikit-learn
+joblib
+pillow
+requests
+prophet
+# Optional heavy libs:
+tensorflow==2.19.1
+flask
+fastapi
+uvicorn[standard]
+pyngrok
