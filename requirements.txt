@@ -1,3 +1,4 @@
+# Core packages
 streamlit>=1.22
 pandas
 numpy
@@ -5,10 +6,15 @@ scikit-learn
 joblib
 pillow
 requests
-prophet
-# Optional heavy libs:
-tensorflow==2.19.1
-flask
+matplotlib
+
+# ML & forecasting
+prophet>=1.1.7
+tensorflow>=2.20
+
+# Utilities for FastAPI/ngrok/etc.
 fastapi
-uvicorn[standard]
+uvicorn
 pyngrok
+nest_asyncio
+pyfcm
