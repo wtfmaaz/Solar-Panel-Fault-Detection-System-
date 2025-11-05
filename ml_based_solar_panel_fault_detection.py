@@ -234,6 +234,9 @@ if st.button("💾 Export Live Data to CSV"):
     st.session_state.realtime_data.to_csv("solar_data.csv", index=False)
     st.success("✅ Saved current live data as solar_data.csv")
 
+if st.button("Save Reading"):
+    save_data(voltage, current, irradiance, temp, panel_no)
+
 # VIEW FAULT LOGS
 # =====================================================
 st.subheader("📝 Fault Log History")
