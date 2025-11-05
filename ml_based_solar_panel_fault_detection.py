@@ -239,7 +239,7 @@ def save_data(voltage, current, irradiance, temp, panel_no):
         new_df.to_csv(CSV_FILE, index=False)
         st.warning("⚠️ CSV file was empty — recreated with new data.")
     # Save the updated data
-    df.to_csv(CSV_FILE, index=False)
+   new_df.to_csv(CSV_FILE, index=False)
     st.success("✅ Data saved to solar_data.csv")
 if st.button("💾 Export Live Data to CSV"):
     st.session_state.realtime_data.to_csv("solar_data.csv", index=False)
