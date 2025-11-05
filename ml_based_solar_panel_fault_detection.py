@@ -214,7 +214,7 @@ import streamlit as st
 CSV_FILE = "solar_data.csv"
 
 def save_data(voltage, current, irradiance, temp, panel_no):
-    # Prepare new row
+    # Prepare new reading
     new_df = pd.DataFrame({
         "panel_number": [panel_no],
         "voltage_v": [voltage],
@@ -223,20 +223,19 @@ def save_data(voltage, current, irradiance, temp, panel_no):
         "panel_temp_c": [temp]
     })
 
-    # If file doesn't exist or is empty → create it fresh
+    # Case 1: File doesn’t exist or empty
     if not os.path.exists(CSV_FILE) or os.path.getsize(CSV_FILE) == 0:
         new_df.to_csv(CSV_FILE, index=False)
         st.success("✅ New CSV created and first reading saved.")
         return
 
-    # If file exists, safely append new reading
+    # Case 2: File exists, append safely
     try:
         existing_df = pd.read_csv(CSV_FILE)
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
         combined_df.to_csv(CSV_FILE, index=False)
         st.success("✅ New reading appended successfully.")
     except pd.errors.EmptyDataError:
-        # File is corrupted or empty
         new_df.to_csv(CSV_FILE, index=False)
         st.warning("⚠️ CSV file was empty — recreated with new data.")
     # Save the updated data
