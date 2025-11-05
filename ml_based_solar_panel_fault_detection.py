@@ -235,6 +235,32 @@ CSV_FILE = "solar_data.csv"
         st.warning("⚠️ CSV file was empty — recreated with new data.")
 
 
+# =====================================================
+# 📥 DOWNLOAD CSV DATA SECTION
+# =====================================================
+st.subheader("📥 Download Collected Solar Data")
+
+CSV_FILE = "solar_data.csv"
+
+try:
+    # Try loading the CSV file
+    df = pd.read_csv(CSV_FILE)
+
+    # Display the data table
+    st.dataframe(df.tail(10))  # Show last 10 readings for convenience
+
+    # Provide download button
+    csv_data = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Full CSV File",
+        data=csv_data,
+        file_name="solar_data.csv",
+        mime="text/csv"
+    )
+except FileNotFoundError:
+    st.warning("⚠️ No data file found yet. Add a reading to create one.")
+except pd.errors.EmptyDataError:
+    st.warning("⚠️ Data file is empty. Try collecting a few readings first.")
 
 
 
