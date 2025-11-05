@@ -166,7 +166,7 @@ except Exception as e:
 # =====================================================
 # STREAMLIT DASHBOARD UI
 # =====================================================
-st.title("🌞 Autonomous Solar Panel Monitoring & Fault Detection")
+st.title("🌞 Solar Panel Monitoring & Fault Detection")
 
 if st.session_state.realtime_data.shape[0] > 0:
     df = st.session_state.realtime_data.tail(50)
