@@ -207,6 +207,29 @@ else:
     st.info("Collect more than 10 real-time readings for forecasting.")
 
 # =====================================================
+CSV_FILE = "solar_data.csv"
+
+def save_data(voltage, current, irradiance, temp, panel_no):
+    data = {
+        "panel_number": [panel_no],
+        "voltage_v": [voltage],
+        "current_a": [current],
+        "irradiance_wpm2": [irradiance],
+        "panel_temp_c": [temp]
+    }
+
+    new_df = pd.DataFrame(data)
+
+    # Check if CSV already exists
+    if os.path.exists(CSV_FILE):
+        existing_df = pd.read_csv(CSV_FILE)
+        df = pd.concat([existing_df, new_df], ignore_index=True)
+    else:
+        df = new_df
+
+    # Save the updated data
+    df.to_csv(CSV_FILE, index=False)
+    st.success("✅ Data saved to solar_data.csv")
 if st.button("💾 Export Live Data to CSV"):
     st.session_state.realtime_data.to_csv("solar_data.csv", index=False)
     st.success("✅ Saved current live data as solar_data.csv")
