@@ -210,10 +210,7 @@ else:
 import pandas as pd
 import os
 import streamlit as st
-
 CSV_FILE = "solar_data.csv"
-def save_data(voltage, current, irradiance, temp, panel_no):
-    CSV_FILE = "solar_data.csv"
     new_df = pd.DataFrame([{
         "panel_no": panel_no,
         "voltage_v": voltage,
@@ -228,12 +225,15 @@ def save_data(voltage, current, irradiance, temp, panel_no):
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
         combined_df.to_csv(CSV_FILE, index=False)
         st.success("✅ New reading appended successfully.")
+
     except FileNotFoundError:
         new_df.to_csv(CSV_FILE, index=False)
         st.warning("⚠️ CSV file not found — created new one.")
+
     except pd.errors.EmptyDataError:
         new_df.to_csv(CSV_FILE, index=False)
         st.warning("⚠️ CSV file was empty — recreated with new data.")
+
 
 
 
