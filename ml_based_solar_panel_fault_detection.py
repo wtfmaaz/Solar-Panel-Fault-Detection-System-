@@ -209,47 +209,9 @@ else:
 # =====================================================
 
 # =====================================================
-# 📥 DOWNLOAD CSV DATA SECTION
-# =====================================================
-st.subheader("📥 Download Collected Solar Data")
-
-CSV_FILE = "solar_data.csv"
-
-try:
-    # Try loading the CSV file
-    df = pd.read_csv(CSV_FILE)
-
-    # Display the data table
-    st.dataframe(df.tail(10))  # Show last 10 readings for convenience
-
-    # Provide download button
-    csv_data = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Full CSV File",
-        data=csv_data,
-        file_name="solar_data.csv",
-        mime="text/csv"
-    )
-except FileNotFoundError:
-    st.warning("⚠️ No data file found yet. Add a reading to create one.")
-except pd.errors.EmptyDataError:
-    st.warning("⚠️ Data file is empty. Try collecting a few readings first.")
 
 
 
-
-
-
-
-    # Save the updated data
-   new_df.to_csv(CSV_FILE, index=False)
-    st.success("✅ Data saved to solar_data.csv")
-if st.button("💾 Export Live Data to CSV"):
-    st.session_state.realtime_data.to_csv("solar_data.csv", index=False)
-    st.success("✅ Saved current live data as solar_data.csv")
-
-if st.button("Save Reading"):
-    save_data(voltage, current, irradiance, temp, panel_no)
 
 # VIEW FAULT LOGS
 # =====================================================
