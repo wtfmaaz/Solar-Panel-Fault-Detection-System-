@@ -212,32 +212,36 @@ import os
 import streamlit as st
 
 CSV_FILE = "solar_data.csv"
-
 def save_data(voltage, current, irradiance, temp, panel_no):
-    # Prepare new reading
-    new_df = pd.DataFrame({
-        "panel_number": [panel_no],
-        "voltage_v": [voltage],
-        "current_a": [current],
-        "irradiance_wpm2": [irradiance],
-        "panel_temp_c": [temp]
-    })
+    CSV_FILE = "solar_data.csv"
+    new_df = pd.DataFrame([{
+        "panel_no": panel_no,
+        "voltage_v": voltage,
+        "current_a": current,
+        "irradiance_wpm2": irradiance,
+        "panel_temp_c": temp,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }])
 
-    # Case 1: File doesn’t exist or empty
-    if not os.path.exists(CSV_FILE) or os.path.getsize(CSV_FILE) == 0:
-        new_df.to_csv(CSV_FILE, index=False)
-        st.success("✅ New CSV created and first reading saved.")
-        return
-
-    # Case 2: File exists, append safely
     try:
         existing_df = pd.read_csv(CSV_FILE)
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
         combined_df.to_csv(CSV_FILE, index=False)
         st.success("✅ New reading appended successfully.")
+    except FileNotFoundError:
+        new_df.to_csv(CSV_FILE, index=False)
+        st.warning("⚠️ CSV file not found — created new one.")
     except pd.errors.EmptyDataError:
         new_df.to_csv(CSV_FILE, index=False)
         st.warning("⚠️ CSV file was empty — recreated with new data.")
+
+
+
+
+
+
+
+
     # Save the updated data
    new_df.to_csv(CSV_FILE, index=False)
     st.success("✅ Data saved to solar_data.csv")
