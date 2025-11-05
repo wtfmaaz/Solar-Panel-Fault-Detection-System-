@@ -207,6 +207,10 @@ else:
     st.info("Collect more than 10 real-time readings for forecasting.")
 
 # =====================================================
+import pandas as pd
+import os
+import streamlit as st
+
 CSV_FILE = "solar_data.csv"
 
 def save_data(voltage, current, irradiance, temp, panel_no):
@@ -220,12 +224,22 @@ def save_data(voltage, current, irradiance, temp, panel_no):
 
     new_df = pd.DataFrame(data)
 
-    # Check if CSV already exists
-    if os.path.exists(CSV_FILE):
+    # If file doesn't exist or is empty -> create new file
+    if not os.path.exists(CSV_FILE) or os.path.getsize(CSV_FILE) == 0:
+        new_df.to_csv(CSV_FILE, index=False)
+        st.success("✅ New CSV file created and first reading saved!")
+        return
+
+    try:
         existing_df = pd.read_csv(CSV_FILE)
         df = pd.concat([existing_df, new_df], ignore_index=True)
-    else:
-        df = new_df
+        df.to_csv(CSV_FILE, index=False)
+        st.success("✅ Data appended to existing CSV file!")
+    except pd.errors.EmptyDataError:
+        # In case file exists but has no header or is corrupted
+        new_df.to_csv(CSV_FILE, index=False)
+        st.warning("⚠️ File was empty — recreated CSV with this new reading.")
+
 
     # Save the updated data
     df.to_csv(CSV_FILE, index=False)
