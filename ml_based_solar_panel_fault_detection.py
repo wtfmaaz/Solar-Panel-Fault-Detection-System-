@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import numpy as np
 import joblib
-from keras.models import load_model
 import streamlit as st
 import plotly.express as px
 import sqlite3
@@ -10,6 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 import paho.mqtt.client as mqtt
+from keras.models import load_model
 from prophet import Prophet
 
 # =====================================================
@@ -17,11 +17,31 @@ from prophet import Prophet
 # =====================================================
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
+os.makedirs("logs", exist_ok=True)
 
 TABULAR_MODEL_PATH = os.path.join(MODEL_DIR, "tabular_rf.pkl")
-LSTM_MODEL_PATH = os.path.join(MODEL_DIR, "lstm_model.keras")  # ✅ new format
+LSTM_MODEL_PATH = os.path.join(MODEL_DIR, "lstm_model.keras")
 DB_PATH = "logs/solar_faults.db"
-os.makedirs("logs", exist_ok=True)
+CSV_FILE = "logs/realtime_data.csv"
+
+# =====================================================
+# DATABASE INITIALIZATION
+# =====================================================
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fault_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            panel_no INTEGER,
+            fault_type TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
 
 # =====================================================
 # EMAIL ALERT FUNCTION
@@ -39,27 +59,52 @@ def send_email_alert(panel_no, fault_type):
             server.starttls()
             server.login(sender_email, "yourpassword")
             server.send_message(msg)
-        st.info(f"📧 Email sent for Panel {panel_no}")
+        st.toast(f"📧 Email sent for Panel {panel_no}", icon="✉️")
     except Exception as e:
         st.warning(f"Email failed: {e}")
 
 # =====================================================
-# DATABASE LOGGING
+# SAVE READING TO CSV
 # =====================================================
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS fault_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            panel_no INTEGER,
-            fault_type TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+def save_reading(df_row):
+    if not os.path.exists(CSV_FILE):
+        df = pd.DataFrame(columns=df_row.columns)
+        df.to_csv(CSV_FILE, index=False)
+    try:
+        existing_df = pd.read_csv(CSV_FILE)
+    except pd.errors.EmptyDataError:
+        existing_df = pd.DataFrame(columns=df_row.columns)
 
+    updated_df = pd.concat([existing_df, df_row], ignore_index=True)
+    updated_df.to_csv(CSV_FILE, index=False)
+
+# =====================================================
+# MODEL LOADING
+# =====================================================
+@st.cache_resource
+def load_tabular_model():
+    if not os.path.isfile(TABULAR_MODEL_PATH):
+        st.warning("⚠️ Tabular model missing!")
+        return None
+    return joblib.load(TABULAR_MODEL_PATH)
+
+@st.cache_resource
+def load_lstm_model():
+    if not os.path.isfile(LSTM_MODEL_PATH):
+        st.warning("⚠️ LSTM model missing!")
+        return None
+    try:
+        return load_model(LSTM_MODEL_PATH, compile=False)
+    except Exception as e:
+        st.error(f"LSTM load error: {e}")
+        return None
+
+tabular_model = load_tabular_model()
+lstm_model = load_lstm_model()
+
+# =====================================================
+# FAULT LOGGING
+# =====================================================
 def log_fault(panel_no, fault_type):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -69,56 +114,45 @@ def log_fault(panel_no, fault_type):
     conn.close()
 
 # =====================================================
-# MODEL LOADING
-# =====================================================
-@st.cache_resource
-def load_tabular_model():
-    if not os.path.isfile(TABULAR_MODEL_PATH):
-        st.warning(f"⚠️ Tabular model not found at {TABULAR_MODEL_PATH}. Upload or train one.")
-        return None
-    return joblib.load(TABULAR_MODEL_PATH)
-
-@st.cache_resource
-def load_lstm_model():
-    if not os.path.isfile(LSTM_MODEL_PATH):
-        st.warning(f"⚠️ LSTM model not found at {LSTM_MODEL_PATH}. Upload or train one.")
-        return None
-    try:
-        # compile=False avoids keras.metrics deserialization issue
-        model = load_model(LSTM_MODEL_PATH, compile=False)
-        return model
-    except Exception as e:
-        st.error(f"Error loading LSTM model: {e}")
-        return None
-
-tabular_model = load_tabular_model()
-lstm_model = load_lstm_model()
-
-# =====================================================
-# MQTT REAL-TIME DATA RECEPTION
+# REAL-TIME MQTT DATA HANDLER
 # =====================================================
 st.session_state.setdefault("realtime_data", pd.DataFrame())
 
 def on_message(client, userdata, msg):
     try:
-        payload = msg.payload.decode()
-        # Expected: panel_no,voltage,current,irradiance,temp
+        payload = msg.payload.decode().strip()
+        # Expected format: panel_no,voltage,current,irradiance,temp
         panel_no, voltage, current, irradiance, temp = map(float, payload.split(","))
-        df = pd.DataFrame({
-            "panel_no": [panel_no],
-            "voltage_v": [voltage],
-            "current_a": [current],
-            "irradiance_wpm2": [irradiance],
-            "panel_temp_c": [temp],
-        })
-        df["power_w"] = df["voltage_v"] * df["current_a"]
-        df["efficiency"] = (df["power_w"] / df["irradiance_wpm2"]) * 100
+        power = voltage * current
+        efficiency = (power / irradiance) * 100 if irradiance > 0 else 0
 
+        df_row = pd.DataFrame([{
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "panel_no": panel_no,
+            "voltage_v": voltage,
+            "current_a": current,
+            "irradiance_wpm2": irradiance,
+            "panel_temp_c": temp,
+            "power_w": power,
+            "efficiency": efficiency
+        }])
+
+        # Save locally & store in memory
+        save_reading(df_row)
         st.session_state.realtime_data = pd.concat(
-            [st.session_state.realtime_data, df], ignore_index=True
+            [st.session_state.realtime_data, df_row], ignore_index=True
         )
+
+        # Auto fault detection
+        if tabular_model is not None:
+            feat_cols = ["voltage_v", "current_a", "irradiance_wpm2", "panel_temp_c", "power_w", "efficiency"]
+            prediction = tabular_model.predict(df_row[feat_cols])[0]
+            if prediction != 0:
+                log_fault(int(panel_no), str(prediction))
+                send_email_alert(int(panel_no), str(prediction))
+                st.error(f"⚠️ Fault Detected on Panel {panel_no}: Type {prediction}")
     except Exception as e:
-        st.error(f"⚠️ MQTT parse error: {e}")
+        st.warning(f"MQTT error: {e}")
 
 mqtt_client = mqtt.Client()
 mqtt_client.on_message = on_message
@@ -127,126 +161,52 @@ try:
     mqtt_client.subscribe("solar/panels")
     mqtt_client.loop_start()
 except Exception as e:
-    st.warning(f"⚠️ MQTT broker not connected: {e}")
+    st.warning(f"⚠️ MQTT broker connection failed: {e}")
 
 # =====================================================
-# STREAMLIT APP
+# STREAMLIT DASHBOARD UI
 # =====================================================
-st.title("☀️ ML-Based Solar Panel Fault Detection & Monitoring")
+st.title("🌞 Autonomous Solar Panel Monitoring & Fault Detection")
 
-input_mode = st.radio("Select Input Mode:", ["Manual Reading", "CSV Upload"])
+if st.session_state.realtime_data.shape[0] > 0:
+    df = st.session_state.realtime_data.tail(50)
 
-# Manual input or CSV
-if input_mode == "Manual Reading":
-    panel_no = st.number_input("Panel Number", 1, 100, 1)
-    voltage = st.number_input("Voltage (V)", 0.0, 50.0, 18.5)
-    current = st.number_input("Current (A)", 0.0, 20.0, 0.85)
-    irradiance = st.number_input("Irradiance (W/m²)", 0.0, 1200.0, 800.0)
-    temp = st.number_input("Panel Temperature (°C)", -20.0, 100.0, 35.0)
+    # LIVE CHART
+    st.subheader("📊 Live Sensor Readings")
+    fig = px.line(df, x="timestamp", y=["voltage_v", "current_a", "irradiance_wpm2", "panel_temp_c"],
+                  title="Real-Time Sensor Data (Last 50 readings)")
+    st.plotly_chart(fig, use_container_width=True)
 
-    manual_input = pd.DataFrame({
-        "panel_no": [panel_no],
-        "voltage_v": [voltage],
-        "current_a": [current],
-        "irradiance_wpm2": [irradiance],
-        "panel_temp_c": [temp],
-    })
-    manual_input["power_w"] = manual_input["voltage_v"] * manual_input["current_a"]
-    manual_input["efficiency"] = (manual_input["power_w"] / manual_input["irradiance_wpm2"]) * 100
+    # LSTM VOLTAGE FORECAST
+    if lstm_model is not None and len(df) >= 10:
+        latest_seq = df[["voltage_v", "current_a", "irradiance_wpm2", "panel_temp_c"]].tail(10).values
+        latest_seq = np.expand_dims(latest_seq, axis=0)
+        predicted_voltage = lstm_model.predict(latest_seq)[0][0]
+        st.metric("🔮 Predicted Next Voltage", f"{predicted_voltage:.2f} V")
+
+    # PROPHET FORECAST
+    if len(df) > 10:
+        try:
+            df_prophet = df.copy()
+            df_prophet["ds"] = pd.to_datetime(df_prophet["timestamp"])
+            df_prophet["y"] = df_prophet["voltage_v"]
+            prophet = Prophet()
+            prophet.fit(df_prophet[["ds", "y"]])
+            future = prophet.make_future_dataframe(periods=10)
+            forecast = prophet.predict(future)
+            fig2 = px.line(forecast, x="ds", y="yhat", title="Predicted Voltage Trend (Prophet)")
+            st.plotly_chart(fig2, use_container_width=True)
+        except Exception as e:
+            st.warning(f"Prophet forecast error: {e}")
+
 else:
-    uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
-    if uploaded_file:
-        manual_input = pd.read_csv(uploaded_file)
-    else:
-        manual_input = pd.DataFrame()
+    st.info("Waiting for real-time data from ESP32 MQTT topic...")
 
 # =====================================================
-# FAULT PREDICTION LOGIC
+# FAULT LOG VIEW
 # =====================================================
-def predict_fault(df):
-    if tabular_model is None:
-        st.warning("⚠️ No ML model found!")
-        return df
-
-    try:
-        feature_cols = ['voltage_v', 'current_a', 'irradiance_wpm2', 'panel_temp_c', 'power_w', 'efficiency']
-        df_features = df[feature_cols]
-        df["fault"] = tabular_model.predict(df_features)
-
-        for _, row in df.iterrows():
-            if row["fault"] != 0:
-                log_fault(int(row["panel_no"]), str(row["fault"]))
-                send_email_alert(int(row["panel_no"]), str(row["fault"]))
-
-        return df
-    except Exception as e:
-        st.error(f"Prediction error: {e}")
-        return df
-
-# Predict Button
-if st.button("🔍 Predict / Log Faults"):
-    if not manual_input.empty:
-        predictions = predict_fault(manual_input)
-        st.session_state["last_predictions"] = predictions
-        st.success("✅ Prediction Completed!")
-        st.dataframe(predictions)
-    else:
-        st.warning("Please enter or upload valid data.")
-
-# =====================================================
-# PROPHET FORECASTING (Voltage Trend)
-# =====================================================
-st.subheader("📈 Predictive Maintenance Forecasting")
-
-if st.session_state.realtime_data.shape[0] > 10:
-    try:
-        df_forecast = st.session_state.realtime_data.copy()
-        df_forecast["ds"] = pd.to_datetime(df_forecast.index)
-        df_forecast["y"] = df_forecast["voltage_v"]
-
-        prophet_model = Prophet()
-        prophet_model.fit(df_forecast[["ds", "y"]])
-        future = prophet_model.make_future_dataframe(periods=10)
-        forecast = prophet_model.predict(future)
-
-        fig = px.line(forecast, x="ds", y="yhat", title="Predicted Voltage Trend")
-        st.plotly_chart(fig)
-    except Exception as e:
-        st.warning(f"Forecasting error: {e}")
-else:
-    st.info("Collect more than 10 real-time readings for forecasting.")
-
-# =====================================================
-# VIEW FAULT LOGS
-# =====================================================
-st.subheader("📝 Fault Log History")
-init_db()
+st.subheader("🧾 Fault History Log")
 conn = sqlite3.connect(DB_PATH)
-st.dataframe(pd.read_sql("SELECT * FROM fault_logs ORDER BY timestamp DESC", conn))
+logs = pd.read_sql("SELECT * FROM fault_logs ORDER BY timestamp DESC", conn)
+st.dataframe(logs)
 conn.close()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
